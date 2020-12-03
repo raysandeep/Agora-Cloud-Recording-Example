@@ -2,10 +2,9 @@ package main
 
 import (
 	"fmt"
+	"github.com/raysandeep/Agora-Cloud-Recording-Example/api"
 	"log"
 
-	"github.com/SphericalKat/go-template/api/endpoints"
-	"github.com/SphericalKat/go-template/db"
 	"github.com/gofiber/fiber/v2"
 	"github.com/spf13/viper"
 )
@@ -25,14 +24,7 @@ func main() {
 
 	app := fiber.New()
 	app.Get("/", healthCheck)
-
-	// Run db migrations
-	log.Println("Running database migrations")
-	if err := db.Migrate(); err != nil {
-		log.Panic(err)
-	}
-
-	endpoints.MountRoutes(app)
+	api.MountRoutes(app)
 
 	app.Listen(":3000")
 }
