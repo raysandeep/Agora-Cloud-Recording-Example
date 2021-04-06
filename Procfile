@@ -1,1 +1,1 @@
-web: bin/agora-cloud-recording-example
+web: bin/Agora-Cloud-Recording-Example
