@@ -2,9 +2,10 @@ package api
 
 import (
 	"fmt"
-	"github.com/raysandeep/Agora-Cloud-Recording-Example/utils"
 	"math/rand"
 	"net/http"
+
+	"github.com/raysandeep/Agora-Cloud-Recording-Example/utils"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/raysandeep/Agora-Cloud-Recording-Example/schemas"
@@ -19,10 +20,10 @@ func startCall(c *fiber.Ctx) error {
 			"err": err.Error(),
 		})
 	}
-
+	uid := int(rand.Uint32())
 	rec := &utils.Recorder{
 		Channel: u.Channel,
-		UID:     u.Uid,
+		UID:     uid,
 	}
 
 	_, err := rec.Acquire()
@@ -78,6 +79,31 @@ func stopCall(c *fiber.Ctx) error {
 	})
 }
 
+func callStatus(c *fiber.Ctx) error {
+	u := new(schemas.CallStatus)
+
+	if err := c.BodyParser(u); err != nil {
+		return c.Status(http.StatusUnprocessableEntity).JSON(fiber.Map{
+			"msg": "invalid json",
+			"err": err.Error(),
+		})
+	}
+
+	data, err := utils.CallStatus(u.Rid, u.Sid)
+	if err != nil {
+		return c.Status(http.StatusUnprocessableEntity).JSON(fiber.Map{
+			"msg": http.StatusInternalServerError,
+			"err": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"code":    http.StatusOK,
+		"message": "successful",
+		"data":    data,
+	})
+}
+
 func createRTCToken(c *fiber.Ctx) error {
 	channel := c.Params("channel")
 	uid := int(rand.Uint32())
@@ -92,6 +118,7 @@ func createRTCToken(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"code":      http.StatusOK,
 		"rtc_token": rtcToken,
+		"uid":       uid,
 	})
 }
 
@@ -141,4 +168,5 @@ func MountRoutes(app *fiber.App) {
 	app.Get("/api/get/rtc/:channel", createRTCToken)
 	app.Get("/api/get/rtm/:uid", createRTMToken)
 	app.Get("/api/tokens/:channel", createTokens)
+	app.Post("/api/status/call", callStatus)
 }

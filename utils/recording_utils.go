@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/spf13/viper"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/spf13/viper"
 )
 
 // Recorder manages cloud recording
@@ -20,11 +21,29 @@ type Recorder struct {
 	SID     string
 }
 
+type StatusStruct struct {
+	Resourceid     string `json:"resourceId"`
+	Sid            string `json:"sid"`
+	Serverresponse struct {
+		Filelistmode string `json:"fileListMode"`
+		Filelist     []struct {
+			Filename       string `json:"filename"`
+			Tracktype      string `json:"trackType"`
+			UID            string `json:"uid"`
+			Mixedalluser   bool   `json:"mixedAllUser"`
+			Isplayable     bool   `json:"isPlayable"`
+			Slicestarttime int64  `json:"sliceStartTime"`
+		} `json:"fileList"`
+		Status         int   `json:"status"`
+		Slicestarttime int64 `json:"sliceStartTime"`
+	} `json:"serverResponse"`
+}
+
 // Acquire runs the acquire endpoint for Cloud Recording
-func (rec *Recorder) Acquire() (string,error) {
+func (rec *Recorder) Acquire() (string, error) {
 	creds, err := GenerateUserCredentials(rec.Channel)
 	if err != nil {
-		return "",err
+		return "", err
 	}
 
 	rec.UID = creds.UID
@@ -42,7 +61,7 @@ func (rec *Recorder) Acquire() (string,error) {
 	req, err := http.NewRequest("POST", "https://api.agora.io/v1/apps/"+viper.GetString("APP_ID")+"/cloud_recording/acquire",
 		bytes.NewBuffer([]byte(requestBody)))
 	if err != nil {
-		return "",err
+		return "", err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -50,7 +69,7 @@ func (rec *Recorder) Acquire() (string,error) {
 
 	resp, err := rec.Do(req)
 	if err != nil {
-		return "",err
+		return "", err
 	}
 
 	defer resp.Body.Close()
@@ -61,11 +80,11 @@ func (rec *Recorder) Acquire() (string,error) {
 	rec.RID = result["resourceId"]
 	b, _ := json.Marshal(result)
 
-	return string(b),nil
+	return string(b), nil
 }
 
 // Start starts the recording
-func (rec *Recorder) Start() (string,error) {
+func (rec *Recorder) Start() (string, error) {
 	currentTime := strconv.FormatInt(time.Now().Unix(), 10)
 
 	var requestBody string
@@ -106,7 +125,7 @@ func (rec *Recorder) Start() (string,error) {
 	req, err := http.NewRequest("POST", "https://api.agora.io/v1/apps/"+viper.GetString("APP_ID")+"/cloud_recording/resourceid/"+rec.RID+"/mode/mix/start",
 		bytes.NewBuffer([]byte(requestBody)))
 	if err != nil {
-		return "",err
+		return "", err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -114,7 +133,7 @@ func (rec *Recorder) Start() (string,error) {
 
 	resp, err := rec.Do(req)
 	if err != nil {
-		return "",err
+		return "", err
 	}
 
 	defer resp.Body.Close()
@@ -122,11 +141,11 @@ func (rec *Recorder) Start() (string,error) {
 	json.NewDecoder(resp.Body).Decode(&result)
 	rec.SID = result["sid"]
 	b, _ := json.Marshal(result)
-	return string(b),nil
+	return string(b), nil
 }
 
 // Stop stops the cloud recording
-func Stop(channel string, uid int, rid string, sid string) (string,error) {
+func Stop(channel string, uid int, rid string, sid string) (string, error) {
 	requestBody := fmt.Sprintf(`
 		{
 			"cname": "%s",
@@ -139,7 +158,7 @@ func Stop(channel string, uid int, rid string, sid string) (string,error) {
 	req, err := http.NewRequest("POST", "https://api.agora.io/v1/apps/"+viper.GetString("APP_ID")+"/cloud_recording/resourceid/"+rid+"/sid/"+sid+"/mode/mix/stop",
 		bytes.NewBuffer([]byte(requestBody)))
 	if err != nil {
-		return "",err
+		return "", err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -157,4 +176,32 @@ func Stop(channel string, uid int, rid string, sid string) (string,error) {
 	json.NewDecoder(resp.Body).Decode(&result)
 	b, _ := json.Marshal(result)
 	return string(b), nil
+}
+
+func CallStatus(rid string, sid string) (StatusStruct, error) {
+	url := "https://api.agora.io/v1/apps/" + viper.GetString("APP_ID") + "/cloud_recording/resourceid/" + rid + "/sid/" + sid + "/mode/mix/query"
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return StatusStruct{}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.SetBasicAuth(viper.GetString("CUSTOMER_ID"), viper.GetString("CUSTOMER_CERTIFICATE"))
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return StatusStruct{}, err
+	}
+
+	defer resp.Body.Close()
+
+	var result StatusStruct
+	json.NewDecoder(resp.Body).Decode(&result)
+	// // b, _ := json.Marshal(result)
+	// bodyBytes, err := ioutil.ReadAll(resp.Body)
+	// if err != nil {
+	//     return "", err
+	// }
+	// result := string(bodyBytes)
+	return result, nil
 }
