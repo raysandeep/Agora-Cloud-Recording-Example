@@ -4,3 +4,4 @@ go-template
 *.exe
 *.so
 .env
+bin/
