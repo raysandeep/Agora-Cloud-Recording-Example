@@ -16,12 +16,14 @@ func healthCheck(c *fiber.Ctx) error {
 
 func main() {
 	// Set global configuration
-	viper.SetConfigName(".env")
-	viper.SetConfigType("env")
+	viper.SetConfigName("config.json")
+	viper.SetConfigType("json")
 	viper.AddConfigPath(".")
+
 	if err := viper.ReadInConfig(); err != nil {
 		log.Panicln(fmt.Errorf("fatal error config file: %s", err))
 	}
+	viper.AutomaticEnv()
 
 	app := fiber.New()
 	app.Get("/", healthCheck)
