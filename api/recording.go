@@ -42,7 +42,7 @@ func startCall(c *fiber.Ctx) error {
 		})
 	}
 
-	return c.Status(http.StatusUnprocessableEntity).JSON(fiber.Map{
+	return c.Status(http.StatusOK).JSON(fiber.Map{
 		"code":    http.StatusOK,
 		"message": "successful",
 		"data": map[string]interface{}{
