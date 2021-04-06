@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/raysandeep/Agora-Cloud-Recording-Example/api"
 	"log"
+
+	"github.com/raysandeep/Agora-Cloud-Recording-Example/api"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/spf13/viper"
@@ -26,5 +27,5 @@ func main() {
 	app.Get("/", healthCheck)
 	api.MountRoutes(app)
 
-	app.Listen(":3000")
+	app.Listen(":" + viper.GetString("PORT"))
 }
