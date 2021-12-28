@@ -2,8 +2,12 @@ package utils
 
 import (
 	"fmt"
+
 	accesstoken "github.com/AgoraIO/Tools/DynamicKey/AgoraDynamicKey/go/src/AccessToken"
 )
+
+// Role Type
+type Role uint16
 
 // Role constants
 const (

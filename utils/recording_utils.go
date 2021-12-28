@@ -4,64 +4,50 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/raysandeep/Estimator-App/schemas"
+
 	"github.com/spf13/viper"
 )
 
-// Recorder manages cloud recording
 type Recorder struct {
 	http.Client
 	Channel string
 	Token   string
-	UID     int
+	UID     int32
 	RID     string
 	SID     string
 }
 
-type StatusStruct struct {
-	Resourceid     string `json:"resourceId"`
-	Sid            string `json:"sid"`
-	Serverresponse struct {
-		Filelistmode string `json:"fileListMode"`
-		Filelist     []struct {
-			Filename       string `json:"filename"`
-			Tracktype      string `json:"trackType"`
-			UID            string `json:"uid"`
-			Mixedalluser   bool   `json:"mixedAllUser"`
-			Isplayable     bool   `json:"isPlayable"`
-			Slicestarttime int64  `json:"sliceStartTime"`
-		} `json:"fileList"`
-		Status         int   `json:"status"`
-		Slicestarttime int64 `json:"sliceStartTime"`
-	} `json:"serverResponse"`
-}
-
 // Acquire runs the acquire endpoint for Cloud Recording
-func (rec *Recorder) Acquire() (string, error) {
+func (rec *Recorder) Acquire() error {
 	creds, err := GenerateUserCredentials(rec.Channel)
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	rec.UID = creds.UID
+	rec.UID = int32(creds.UID)
 	rec.Token = creds.Rtc
 
-	requestBody := fmt.Sprintf(`
-		{
-			"cname": "%s",
-			"uid": "%d",
-			"clientRequest": {
-				"resourceExpiredHour": 24
-			}
-		}
-	`, rec.Channel, rec.UID)
+	requestBody, _ := json.Marshal(&schemas.AcquireRequest{
+		Cname: rec.Channel,
+		UID:   strconv.Itoa(int(rec.UID)),
+		ClientRequest: schemas.AcquireClientRequest{
+			ResourceExpiredHour: 24,
+		},
+	})
+
+	log.Println(string(requestBody))
+
 	req, err := http.NewRequest("POST", "https://api.agora.io/v1/apps/"+viper.GetString("APP_ID")+"/cloud_recording/acquire",
-		bytes.NewBuffer([]byte(requestBody)))
+		bytes.NewBuffer(requestBody))
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -69,63 +55,100 @@ func (rec *Recorder) Acquire() (string, error) {
 
 	resp, err := rec.Do(req)
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}(resp.Body)
 
-	var result map[string]string
-	json.NewDecoder(resp.Body).Decode(&result)
+	var result map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		return err
+	}
 
-	rec.RID = result["resourceId"]
-	b, _ := json.Marshal(result)
+	log.Printf("%v", result)
 
-	return string(b), nil
+	rec.RID = result["resourceId"].(string)
+
+	return nil
 }
 
 // Start starts the recording
-func (rec *Recorder) Start() (string, error) {
-	currentTime := strconv.FormatInt(time.Now().Unix(), 10)
+func (rec *Recorder) Start(channelTitle string, secret *string) error {
+	// currentTime := strconv.FormatInt(time.Now().Unix(), 10)
+	location, err := time.LoadLocation("America/Los_Angeles")
+	if err != nil {
+		return err
+	}
+	currentTimeStamp := time.Now().In(location)
+	currentDate := currentTimeStamp.Format("20060102")
+	currentTime := currentTimeStamp.Format("150405")
 
-	var requestBody string
-
-	requestBody = fmt.Sprintf(`
-		{
-			"cname": "%s",
-			"uid": "%d",
-			"clientRequest": {
-				"token": "%s",
-				"recordingConfig": {
-					"maxIdleTime": 30,
-					"streamTypes": 2,
-					"channelType": 1,
-					"transcodingConfig": {
-						"height": 720, 
-						"width": 1280,
-						"bitrate": 2260, 
-						"fps": 15, 
-						"mixedVideoLayout": 1,
-						"backgroundColor": "#000000"
-					}
-				},
-				"storageConfig": {
-					"vendor": %d,
-					"region": %d,
-					"bucket": "%s",
-					"accessKey": "%s",
-					"secretKey": "%s",
-					"fileNamePrefix": ["%s", "%s"]
-				}
-			}
+	transcodingConfig := schemas.TranscodingConfig{
+		Height:           720,
+		Width:            1280,
+		Bitrate:          2260,
+		Fps:              15,
+		MixedVideoLayout: 1,
+		BackgroundColor:  "#000000",
+	}
+	var recordingConfig schemas.RecordingConfig
+	if secret != nil && *secret != "" {
+		recordingConfig = schemas.RecordingConfig{
+			MaxIdleTime:       30,
+			StreamTypes:       2,
+			ChannelType:       1,
+			DecryptionMode:    1,
+			Secret:            *secret,
+			TranscodingConfig: transcodingConfig,
 		}
-	`, rec.Channel, rec.UID, rec.Token, viper.GetInt("RECORDING_VENDOR"), viper.GetInt("RECORDING_REGION"), viper.GetString("BUCKET_NAME"),
-		viper.GetString("BUCKET_ACCESS_KEY"), viper.GetString("BUCKET_ACCESS_SECRET"),
-		rec.Channel, currentTime)
+	} else {
+		recordingConfig = schemas.RecordingConfig{
+			MaxIdleTime:       30,
+			StreamTypes:       2,
+			ChannelType:       1,
+			TranscodingConfig: transcodingConfig,
+		}
+	}
+
+	recordingRequest := schemas.StartRecordRequest{
+		Cname: rec.Channel,
+		UID:   strconv.Itoa(int(rec.UID)),
+		ClientRequest: schemas.ClientRequest{
+			Token: rec.Token,
+			StorageConfig: schemas.StorageConfig{
+				Vendor:    viper.GetInt("RECORDING_VENDOR"),
+				Region:    viper.GetInt("RECORDING_REGION"),
+				Bucket:    viper.GetString("BUCKET_NAME"),
+				AccessKey: viper.GetString("BUCKET_ACCESS_KEY"),
+				SecretKey: viper.GetString("BUCKET_ACCESS_SECRET"),
+				FileNamePrefix: []string{
+					channelTitle, currentDate, currentTime,
+				},
+			},
+			RecordingFileConfig: schemas.RecordingFileConfig{
+				AVFileType: []string{"hls", "mp4"},
+			},
+			RecordingConfig: recordingConfig,
+		},
+	}
+
+	requestBody, err := json.Marshal(&recordingRequest)
+	if err != nil {
+		return err
+	}
+
+	log.Print("https://api.agora.io/v1/apps/" + viper.GetString("APP_ID") + "/cloud_recording/resourceid/" + rec.RID + "/mode/mix/start")
 
 	req, err := http.NewRequest("POST", "https://api.agora.io/v1/apps/"+viper.GetString("APP_ID")+"/cloud_recording/resourceid/"+rec.RID+"/mode/mix/start",
-		bytes.NewBuffer([]byte(requestBody)))
+		bytes.NewBuffer(requestBody))
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -133,32 +156,41 @@ func (rec *Recorder) Start() (string, error) {
 
 	resp, err := rec.Do(req)
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	defer resp.Body.Close()
-	var result map[string]string
-	json.NewDecoder(resp.Body).Decode(&result)
-	rec.SID = result["sid"]
-	b, _ := json.Marshal(result)
-	return string(b), nil
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}(resp.Body)
+
+	var result map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("%v", result)
+	rec.SID = result["sid"].(string)
+
+	return nil
 }
 
-// Stop stops the cloud recording
-func Stop(channel string, uid int, rid string, sid string) (string, error) {
-	requestBody := fmt.Sprintf(`
-		{
-			"cname": "%s",
-			"uid": "%d",
-			"clientRequest": {
-			}
-		}
-	`, channel, uid)
+func (rec *Recorder) Stop() error {
+	recordingRequest := schemas.AcquireRequest{
+		Cname:         rec.Channel,
+		UID:           strconv.Itoa(int(rec.UID)),
+		ClientRequest: schemas.AcquireClientRequest{},
+	}
 
-	req, err := http.NewRequest("POST", "https://api.agora.io/v1/apps/"+viper.GetString("APP_ID")+"/cloud_recording/resourceid/"+rid+"/sid/"+sid+"/mode/mix/stop",
+	requestBody, _ := json.Marshal(&recordingRequest)
+
+	req, err := http.NewRequest("POST", "https://api.agora.io/v1/apps/"+viper.GetString("APP_ID")+"/cloud_recording/resourceid/"+rec.RID+"/sid/"+rec.SID+"/mode/mix/stop",
 		bytes.NewBuffer([]byte(requestBody)))
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -167,41 +199,39 @@ func Stop(channel string, uid int, rid string, sid string) (string, error) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}(resp.Body)
 
 	var result map[string]string
-	json.NewDecoder(resp.Body).Decode(&result)
-	b, _ := json.Marshal(result)
-	return string(b), nil
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func CallStatus(rid string, sid string) (StatusStruct, error) {
-	url := "https://api.agora.io/v1/apps/" + viper.GetString("APP_ID") + "/cloud_recording/resourceid/" + rid + "/sid/" + sid + "/mode/mix/query"
+func ImportEnv() {
+	viper.SetConfigName(".env")
+	viper.SetConfigType("env")
+	viper.AddConfigPath(".")
+	viper.SetDefault("PORT", 3000)
+	viper.SetDefault("ENVIRONMENT", "developement")
 
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return StatusStruct{}, err
+	viper.AutomaticEnv()
+
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			// Config file not found ignoring error
+		} else {
+			log.Panicln(fmt.Errorf("fatal error config file: %s", err))
+		}
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.SetBasicAuth(viper.GetString("CUSTOMER_ID"), viper.GetString("CUSTOMER_CERTIFICATE"))
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return StatusStruct{}, err
-	}
-
-	defer resp.Body.Close()
-
-	var result StatusStruct
-	json.NewDecoder(resp.Body).Decode(&result)
-	// // b, _ := json.Marshal(result)
-	// bodyBytes, err := ioutil.ReadAll(resp.Body)
-	// if err != nil {
-	//     return "", err
-	// }
-	// result := string(bodyBytes)
-	return result, nil
 }

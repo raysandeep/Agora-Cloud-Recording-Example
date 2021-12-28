@@ -5,3 +5,5 @@ go-template
 *.so
 .env
 bin/
+
+vendor/

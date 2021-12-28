@@ -1,13 +1,12 @@
 package utils
 
 import (
-	"github.com/raysandeep/Agora-Cloud-Recording-Example/schemas"
-	"github.com/spf13/viper"
 	"math/rand"
 	"time"
+
+	"github.com/raysandeep/Estimator-App/schemas"
+	"github.com/spf13/viper"
 )
-
-
 
 // GetRtcToken generates token for Agora RTC SDK
 func GetRtcToken(channel string, uid int) (string, error) {
@@ -17,15 +16,6 @@ func GetRtcToken(channel string, uid int) (string, error) {
 	expireTimestamp := currentTimestamp + 86400
 
 	return BuildRTCTokenWithUID(viper.GetString("APP_ID"), viper.GetString("APP_CERTIFICATE"), channel, uint32(uid), RtcRole, expireTimestamp)
-}
-
-// GetRtmToken generates a token for Agora RTM SDK
-func GetRtmToken(user string) (string, error) {
-
-	currentTimestamp := uint32(time.Now().UTC().Unix())
-	expireTimestamp := currentTimestamp + 86400
-
-	return BuildRTMToken(viper.GetString("APP_ID"), viper.GetString("APP_CERTIFICATE"), user, RoleRtmUser, expireTimestamp)
 }
 
 // GenerateUserCredentials generates uid, rtc and rtc token
