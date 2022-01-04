@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,14 +32,22 @@ func StartCall(c *fiber.Ctx) error {
 		UID:     int32(uid),
 	}
 
-	err := rec.Acquire()
-
+	record, err := utils.FetchRecord(rec.Channel)
 	if err != nil {
 		return c.Status(http.StatusUnprocessableEntity).JSON(fiber.Map{
 			"msg": http.StatusInternalServerError,
 			"err": err.Error(),
 		})
 	}
+
+	err = rec.Acquire()
+	if err != nil {
+		return c.Status(http.StatusUnprocessableEntity).JSON(fiber.Map{
+			"msg": http.StatusInternalServerError,
+			"err": err.Error(),
+		})
+	}
+
 	err = rec.Start(u.Channel, nil)
 	if err != nil {
 		return c.Status(http.StatusUnprocessableEntity).JSON(fiber.Map{
@@ -46,6 +55,13 @@ func StartCall(c *fiber.Ctx) error {
 			"err": err.Error(),
 		})
 	}
+
+	utils.PatchRecord(record.ID, map[string]interface{}{
+		"rid":    rec.RID,
+		"sid":    rec.SID,
+		"uid":    strconv.Itoa(int(rec.UID)),
+		"status": 1,
+	})
 
 	return c.Status(http.StatusOK).JSON(fiber.Map{
 		"code":    http.StatusOK,
@@ -70,19 +86,39 @@ func StopCall(c *fiber.Ctx) error {
 		})
 	}
 
-	rec := &utils.Recorder{
-		Channel: u.Channel,
-		UID:     int32(u.Uid),
-		RID:     u.Rid,
-		SID:     u.Sid,
-	}
-	err := rec.Stop()
+	record, err := utils.FetchRecord(u.Channel)
 	if err != nil {
 		return c.Status(http.StatusUnprocessableEntity).JSON(fiber.Map{
 			"msg": http.StatusInternalServerError,
 			"err": err.Error(),
 		})
 	}
+
+	uid, err := strconv.Atoi(record.UID)
+	if err != nil {
+		return c.Status(http.StatusUnprocessableEntity).JSON(fiber.Map{
+			"msg": http.StatusInternalServerError,
+			"err": err.Error(),
+		})
+	}
+
+	rec := &utils.Recorder{
+		Channel: u.Channel,
+		UID:     int32(uid),
+		RID:     record.Rid,
+		SID:     record.Sid,
+	}
+	err = rec.Stop()
+	if err != nil {
+		return c.Status(http.StatusUnprocessableEntity).JSON(fiber.Map{
+			"msg": http.StatusInternalServerError,
+			"err": err.Error(),
+		})
+	}
+
+	utils.PatchRecord(record.ID, map[string]interface{}{
+		"status": 2,
+	})
 
 	return c.JSON(fiber.Map{
 		"code":    http.StatusOK,
@@ -111,6 +147,14 @@ func CreateRTCToken(c *fiber.Ctx) error {
 func Process(ctx *fiber.Ctx) error {
 	id := ctx.Params("id")
 
+	record, err := utils.FetchRecord(id)
+	if err != nil {
+		return ctx.Status(http.StatusUnprocessableEntity).JSON(fiber.Map{
+			"msg": http.StatusInternalServerError,
+			"err": err.Error(),
+		})
+	}
+
 	objects := utils.ListObjectInS3(id)
 
 	m3u8File := ""
@@ -124,6 +168,12 @@ func Process(ctx *fiber.Ctx) error {
 			break
 		}
 	}
+
+	utils.PatchRecord(record.ID, map[string]interface{}{
+		"status":             3,
+		"video_url_download": mp4File,
+		"video_url_play":     m3u8File,
+	})
 
 	return ctx.JSON(fiber.Map{"m3u8File": m3u8File, "mp4File": mp4File})
 }

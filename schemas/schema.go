@@ -1,14 +1,13 @@
 package schemas
 
+import "time"
+
 type StartCall struct {
 	Channel string `json:"channel"`
 }
 
 type StopCall struct {
-	Uid     int    `json:"uid"`
 	Channel string `json:"channel"`
-	Rid     string `json:"rid"`
-	Sid     string `json:"sid"`
 }
 
 type UserCredentials struct {
@@ -74,4 +73,28 @@ type StartRecordRequest struct {
 	Cname         string        `json:"cname"`
 	UID           string        `json:"uid"`
 	ClientRequest ClientRequest `json:"clientRequest"`
+}
+
+type BubbleRecord struct {
+	CreatedBy         string    `json:"Created By"`
+	CreatedDate       time.Time `json:"Created Date"`
+	ModifiedDate      time.Time `json:"Modified Date"`
+	CustomerFirstName string    `json:"Customer First Name"`
+	CustomerLastName  string    `json:"Customer Last Name"`
+	CustomerEmail     string    `json:"Customer email"`
+	CustomerPhone     string    `json:"Customer Phone"`
+	ShortID           string    `json:"short_id"`
+	Rid               string    `json:"rid"`
+	Sid               string    `json:"sid"`
+	UID               string    `json:"uid"`
+	ID                string    `json:"_id"`
+}
+
+type BubbleResponse struct {
+	Response struct {
+		Cursor    int            `json:"cursor"`
+		Results   []BubbleRecord `json:"results"`
+		Remaining int            `json:"remaining"`
+		Count     int            `json:"count"`
+	} `json:"response"`
 }
