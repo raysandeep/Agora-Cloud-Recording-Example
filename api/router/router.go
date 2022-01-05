@@ -10,6 +10,7 @@ func MountRoutes(app *fiber.App) {
 	app.Get("/api/token/:channel", controllers.CreateRTCToken)
 	app.Post("/api/start/call", controllers.StartCall)
 	app.Post("/api/stop/call", controllers.StopCall)
+	app.Post("/api/process/call", controllers.Process)
 	app.Get("/download", controllers.DownloadVideo)
 	app.Get("/play", controllers.PlayVideo)
 }

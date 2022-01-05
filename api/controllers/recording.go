@@ -29,7 +29,7 @@ func StartCall(c *fiber.Ctx) error {
 	uid := int(rand.Uint32())
 	rec := &utils.Recorder{
 		Channel: u.Channel,
-		UID:     int32(uid),
+		UID:     uint32(uid),
 	}
 
 	record, err := utils.FetchRecord(rec.Channel)
@@ -104,7 +104,7 @@ func StopCall(c *fiber.Ctx) error {
 
 	rec := &utils.Recorder{
 		Channel: u.Channel,
-		UID:     int32(uid),
+		UID:     uint32(uid),
 		RID:     record.Rid,
 		SID:     record.Sid,
 	}
@@ -145,9 +145,15 @@ func CreateRTCToken(c *fiber.Ctx) error {
 }
 
 func Process(ctx *fiber.Ctx) error {
-	id := ctx.Params("id")
+	u := new(schemas.StopCall)
 
-	record, err := utils.FetchRecord(id)
+	if err := ctx.BodyParser(u); err != nil {
+		return ctx.Status(http.StatusUnprocessableEntity).JSON(fiber.Map{
+			"msg": "invalid json",
+			"err": err.Error(),
+		})
+	}
+	record, err := utils.FetchRecord(u.Channel)
 	if err != nil {
 		return ctx.Status(http.StatusUnprocessableEntity).JSON(fiber.Map{
 			"msg": http.StatusInternalServerError,
@@ -155,7 +161,7 @@ func Process(ctx *fiber.Ctx) error {
 		})
 	}
 
-	objects := utils.ListObjectInS3(id)
+	objects := utils.ListObjectInS3(u.Channel)
 
 	m3u8File := ""
 	mp4File := ""

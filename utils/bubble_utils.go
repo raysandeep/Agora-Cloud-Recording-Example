@@ -79,8 +79,14 @@ func FetchRecord(shortId string) (*schemas.BubbleRecord, error) {
 	}
 	defer res.Body.Close()
 
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+
 	var result schemas.BubbleResponse
-	err = json.NewDecoder(req.Body).Decode(&result)
+	err = json.Unmarshal(body,&result)
 	if err != nil {
 		return nil, err
 	}

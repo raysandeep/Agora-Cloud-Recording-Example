@@ -19,7 +19,7 @@ type Recorder struct {
 	http.Client
 	Channel string
 	Token   string
-	UID     int32
+	UID     uint32
 	RID     string
 	SID     string
 }
@@ -31,7 +31,7 @@ func (rec *Recorder) Acquire() error {
 		return err
 	}
 
-	rec.UID = int32(creds.UID)
+	rec.UID = uint32(creds.UID)
 	rec.Token = creds.Rtc
 
 	requestBody, _ := json.Marshal(&schemas.AcquireRequest{
@@ -187,7 +187,8 @@ func (rec *Recorder) Stop() error {
 
 	requestBody, _ := json.Marshal(&recordingRequest)
 
-	req, err := http.NewRequest("POST", "https://api.agora.io/v1/apps/"+viper.GetString("APP_ID")+"/cloud_recording/resourceid/"+rec.RID+"/sid/"+rec.SID+"/mode/mix/stop",
+	url := "https://api.agora.io/v1/apps/"+viper.GetString("APP_ID")+"/cloud_recording/resourceid/"+rec.RID+"/sid/"+rec.SID+"/mode/mix/stop"
+	req, err := http.NewRequest("POST",url ,
 		bytes.NewBuffer([]byte(requestBody)))
 	if err != nil {
 		return err
@@ -209,7 +210,7 @@ func (rec *Recorder) Stop() error {
 		}
 	}(resp.Body)
 
-	var result map[string]string
+	var result map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
 		return err
