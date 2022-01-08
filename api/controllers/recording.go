@@ -128,7 +128,7 @@ func StopCall(c *fiber.Ctx) error {
 
 func CreateRTCToken(c *fiber.Ctx) error {
 	channel := c.Params("channel")
-	uid := int(rand.Uint32())
+	uid := int(0)
 	rtcToken, err := utils.GetRtcToken(channel, uid)
 	if err != nil {
 		return c.Status(http.StatusUnprocessableEntity).JSON(fiber.Map{
