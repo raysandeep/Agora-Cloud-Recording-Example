@@ -239,7 +239,7 @@ func PlayVideo(ctx *fiber.Ctx) error {
 }
 
 func DownloadVideo(ctx *fiber.Ctx) error {
-	file := ctx.Params("file")
+	file := ctx.Query("file")
 
 	object, err := utils.GetObjectInS3(file, 12*time.Hour)
 	if err != nil {

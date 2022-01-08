@@ -154,11 +154,12 @@ func GetObjectInS3(key string, expiryTime time.Duration) (string, error) {
 	svc := s3.New(sess)
 
 	req, _ := svc.GetObjectRequest(&s3.GetObjectInput{
-		Bucket: aws.String(viper.GetString("AWS_BUCKET")),
+		Bucket: aws.String(viper.GetString("BUCKET_NAME")),
 		Key:    aws.String(key),
 	})
 	urlStr, err := req.Presign(expiryTime)
 	if err != nil {
+		fmt.Printf("failed to presign GetObjectRequest for key %q: %v", key, err)
 		return "", err
 	}
 	return urlStr, nil
@@ -175,6 +176,7 @@ func ListObjectInS3(key string) []string {
 	i := 0
 	err := svc.ListObjectsPages(&s3.ListObjectsInput{
 		Bucket: aws.String(viper.GetString("BUCKET_NAME")),
+		Prefix: aws.String(key),
 	}, func(p *s3.ListObjectsOutput, last bool) (shouldContinue bool) {
 
 		i++
