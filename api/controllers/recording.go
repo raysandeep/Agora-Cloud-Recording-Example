@@ -161,27 +161,35 @@ func Process(ctx *fiber.Ctx) error {
 		})
 	}
 
-	objects := utils.ListObjectInS3(u.Channel)
-
-	m3u8File := ""
-	mp4File := ""
-	for _, i := range objects {
-		if strings.HasSuffix(i, ".m3u8") {
-			m3u8File = i
-			break
-		} else if strings.HasSuffix(i, ".mp4") {
-			mp4File = i
-			break
+	go func(id string) {
+		objects := utils.ListObjectInS3(id)
+		m3u8File := ""
+		mp4File := ""
+		for _, i := range objects {
+			if strings.HasSuffix(i, ".m3u8") {
+				m3u8File = i
+				break
+			}
 		}
-	}
 
-	utils.PatchRecord(record.ID, map[string]interface{}{
-		"status":             3,
-		"video_url_download": mp4File,
-		"video_url_play":     m3u8File,
-	})
+		for _, i := range objects {
+			if strings.HasSuffix(i, ".mp4") {
+				mp4File = i
+				break
+			}
+		}
 
-	return ctx.JSON(fiber.Map{"m3u8File": m3u8File, "mp4File": mp4File})
+		utils.PatchRecord(record.ID, map[string]interface{}{
+			"status":             3,
+			"video_url_download": mp4File,
+			"video_url_play":     m3u8File,
+		})
+		log.Println(mp4File)
+	}(u.Channel)
+
+
+
+	return ctx.JSON(nil)
 }
 
 func PlayVideo(ctx *fiber.Ctx) error {

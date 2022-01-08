@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -129,7 +130,7 @@ func RenameS3(input *RenamerInput) error {
 func ConnectAws() *session.Session {
 	AccessKeyID = viper.GetString("BUCKET_ACCESS_KEY")
 	SecretAccessKey = viper.GetString("BUCKET_ACCESS_SECRET")
-	Region = viper.GetString("AWS_REGION")
+	Region = viper.GetString("BUCKET_REGION")
 	var err error = nil // no
 	sess, err = session.NewSession(
 		&aws.Config{
@@ -168,14 +169,23 @@ func ListObjectInS3(key string) []string {
 		sess = ConnectAws()
 	}
 	svc := s3.New(sess)
-	params := &s3.ListObjectsInput{
-		Bucket: aws.String(viper.GetString("BUCKET_NAME")),
-		Prefix: aws.String(key),
-	}
+
 	keys := []string{}
-	resp, _ := svc.ListObjects(params)
-	for _, key := range resp.Contents {
-		keys = append(keys, *key.Key)
+
+	i := 0
+	err := svc.ListObjectsPages(&s3.ListObjectsInput{
+		Bucket: aws.String(viper.GetString("BUCKET_NAME")),
+	}, func(p *s3.ListObjectsOutput, last bool) (shouldContinue bool) {
+
+		i++
+		for _, obj := range p.Contents {
+			keys = append(keys, *obj.Key)
+		}
+		return true
+	})
+
+	if err!=nil{
+		log.Println(err)
 	}
 
 	return keys
